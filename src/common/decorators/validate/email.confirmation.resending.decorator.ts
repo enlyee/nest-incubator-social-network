@@ -26,7 +26,6 @@ export class EmailConfirmationResendingConstraint
   }
 }
 
-// https://github.com/typestack/class-validator?tab=readme-ov-file#custom-validation-decorators
 export function EmailConfirmationResending(
   property?: string,
   validationOptions?: ValidationOptions,

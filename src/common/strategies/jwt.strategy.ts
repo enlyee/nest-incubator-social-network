@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { jwtConstants } from '../../features/auth/constants';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { SessionService } from '../../features/security/application/session.service';
-import { Schema } from 'mongoose';
+import { ConfigService } from '@nestjs/config';
 
 export class JwtAccessOutput {
   userId: string;
@@ -21,10 +20,11 @@ export class AccessTokenStrategy extends PassportStrategy(
   Strategy,
   'jwt-access',
 ) {
-  constructor() {
+  configService: ConfigService;
+  constructor(configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: jwtConstants.secret,
+      secretOrKey: configService.get('jwtConfig.secret'),
     });
   }
 
@@ -42,7 +42,9 @@ export class RefreshTokenStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
+  configService: ConfigService;
   constructor(
+    configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly sessionService: SessionService,
   ) {
@@ -50,7 +52,7 @@ export class RefreshTokenStrategy extends PassportStrategy(
       jwtFromRequest: ExtractJwt.fromExtractors([
         RefreshTokenStrategy.extractJWT,
       ]),
-      secretOrKey: jwtConstants.secret,
+      secretOrKey: configService.get('jwtConfig.secret'),
       passReqToCallback: true,
     });
   }

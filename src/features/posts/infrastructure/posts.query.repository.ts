@@ -6,24 +6,39 @@ import { PostsOutputModel } from '../api/models/output/posts.output.model';
 import { PostsQueryFixedModel } from '../api/models/input/posts.input.model';
 import { PostsLikesQueryRepository } from '../../likes/infrostructure/posts-likes.query.repository';
 import { BlogsQueryRepository } from '../../blogs/infrastructure/blogs.query.repository';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { Blog } from '../../blogs/domain/blogs.entity';
 
 @Injectable()
 export class PostsQueryRepository {
   constructor(
-    @InjectDataSource() private connection: DataSource,
+    @InjectRepository(Post) private connection: Repository<Post>,
     private readonly postsLikesQueryRepository: PostsLikesQueryRepository,
   ) {}
 
+  async isExists(id: string) {
+    try {
+      const post: Post | null = await this.connection.findOne({
+        where: { id: id },
+      });
+      return !!post;
+    } catch (err) {
+      return false;
+    }
+  }
+
   async getById(id: string, userId: string | null = null) {
     try {
-      const post: Post[] | null = await this.connection.query(
-        `SELECT p.*, b."name" AS "blogName" FROM public."posts" p LEFT JOIN public."blogs" b ON p."blogId" = b."id" WHERE p."id" = $1`,
-        [id],
-      );
-      if (!post[0]) return false;
-      const mapped = await this.mapToViewModel([post[0]], userId);
+      const post: Post | null = await this.connection.findOne({
+        relations: {
+          blog: true,
+        },
+        where: { id: id },
+      });
+      console.log(post);
+      if (!post) return false;
+      const mapped = await this.mapToViewModel([post], userId);
       return mapped[0];
     } catch (err) {
       return false;
@@ -36,21 +51,26 @@ export class PostsQueryRepository {
     userId: string | null = null,
   ) {
     try {
-      const blogFilter = blogId ? `WHERE p."blogId" = '${blogId}'` : '';
-      const collectionSize = (
-        await this.connection.query(
-          `SELECT count(1) FROM public."posts" p ${blogFilter}`,
-        )
-      )[0].count;
-      const posts: Post[] = await this.connection.query(
-        `SELECT p.*, b."name" AS "blogName" FROM public."posts" p LEFT JOIN public."blogs" b ON p."blogId" = b."id" ${blogFilter} ORDER BY "${query.sortBy}" ${query.sortDirection} LIMIT ${query.pageSize} OFFSET ${(query.pageNumber - 1) * query.pageSize}`,
-      ); //todo paramssssssss
-      const items = await this.mapToViewModel(posts, userId);
+      const blogFilter = blogId ? { blogId: blogId } : {};
+      const sorting =
+        query.sortBy === 'blogName'
+          ? { blog: { name: query.sortDirection } }
+          : { [query.sortBy]: query.sortDirection };
+      const postsAndCount = await this.connection.findAndCount({
+        relations: {
+          blog: true,
+        },
+        where: [blogFilter],
+        order: sorting,
+        take: query.pageSize,
+        skip: (query.pageNumber - 1) * query.pageSize,
+      });
+      const items = await this.mapToViewModel(postsAndCount[0], userId);
       return {
-        pagesCount: Math.ceil(collectionSize / query.pageSize),
+        pagesCount: Math.ceil(postsAndCount[1] / query.pageSize),
         page: +query.pageNumber,
         pageSize: +query.pageSize,
-        totalCount: +collectionSize,
+        totalCount: +postsAndCount[1],
         items: items,
       };
     } catch (err) {
@@ -75,7 +95,7 @@ export class PostsQueryRepository {
       const status = statuses ? statuses.find((s) => s.postId === p.id) : null;
       return new PostsOutputModel(
         p,
-        p.blogName,
+        p.blog.name,
         +likes,
         +dislikes,
         status ? status.status : 'None',

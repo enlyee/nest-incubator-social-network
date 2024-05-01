@@ -1,42 +1,46 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { Injectable } from '@nestjs/common';
-import { PostsLike } from '../domain/posts-like.entity';
+import { PostLike } from '../domain/posts-like.entity';
 import { Model } from 'mongoose';
 import { UsersQueryRepository } from '../../users/infrastructure/users.query-repository';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 
 @Injectable()
 export class PostsLikesQueryRepository {
   constructor(
-    @InjectDataSource() private connection: DataSource,
+    @InjectRepository(PostLike) private connection: Repository<PostLike>,
     private readonly usersQueryRepository: UsersQueryRepository,
   ) {}
 
   async getPostLikes(postId: string) {
-    const reactions = await this.connection.query(
-      `SELECT (SELECT count(1) FROM public."postsLikes" WHERE "postId" = $1 AND status = 'Like') AS likes, (SELECT count(1) FROM public."postsLikes" WHERE "postId" = $1 AND status = 'Dislike') AS dislikes`,
-      [postId],
-    );
-    return reactions[0];
+    const reactions: any = await this.connection
+      .createQueryBuilder('l')
+      .select(`SUM(CASE WHEN status='Like' THEN 1 ELSE 0 END) as likes`)
+      .addSelect(
+        `SUM(CASE WHEN status='Dislike' THEN 1 ELSE 0 END) as dislikes`,
+      )
+      .where(`"postId" = :postId`, { postId: postId })
+      .getRawOne();
+    return reactions;
   }
 
   async getMyStatusForList(posts: string[], userId: string) {
-    const likes: PostsLike[] = await this.connection.query(
-      `SELECT * FROM public."postsLikes" WHERE "postId" =ANY ($1) AND "userId" = $2`,
-      [posts, userId],
-    );
-    const statuses = likes.map((c: PostsLike) => {
+    const likes = await this.connection.find({
+      where: { postId: In(posts), userId: userId },
+    });
+    const statuses = likes.map((c: PostLike) => {
       return { postId: c.postId, status: c.status };
     });
     return statuses;
   }
 
   async getLastThreeLikes(postId: string) {
-    const likes = await this.connection.query(
-      `SELECT * FROM public."postsLikes" WHERE "postId" = $1 AND "status" = 'Like' ORDER BY "addedAt" DESC LIMIT 3`,
-      [postId],
-    );
+    const likes = await this.connection.find({
+      where: { postId: postId, status: 'Like' },
+      order: { addedAt: 'DESC' },
+      take: 3,
+    });
     if (likes.length === 0) return [];
     const usersId = likes.map((l) => l.userId);
     const usernames =

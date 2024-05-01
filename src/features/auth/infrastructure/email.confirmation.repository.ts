@@ -1,60 +1,57 @@
 import { Injectable } from '@nestjs/common';
 import { EmailConfirmation } from '../domain/email.confirmation.entity';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class EmailConfirmationRepository {
   constructor(
-    @InjectDataSource()
-    private connection: DataSource,
+    @InjectRepository(EmailConfirmation)
+    private connection: Repository<EmailConfirmation>,
   ) {}
   async createConfirmation(confirmation: EmailConfirmation) {
-    await this.connection.query(
-      `INSERT INTO public."emailConfirmation" ("id", "expiredIn", "email") VALUES ($1, $2, $3);`,
-      [confirmation.id, confirmation.expiredIn, confirmation.email],
-    );
+    await this.connection.save(confirmation);
   }
 
   async findConfirmation(code: string) {
     try {
-      const confirm: EmailConfirmation[] = await this.connection.query(
-        'SELECT * FROM public."emailConfirmation" c WHERE c."id" = $1',
-        [code],
-      );
-      return confirm[0];
+      const confirm = await this.connection
+        .findOneBy({ id: code })
+        .catch((err: any) => {
+          throw Error;
+        });
+      return confirm;
     } catch (err) {
       return null;
     }
   }
 
-  async getAndDeleteConfirmation(code: string) {
+  async getAndDeleteConfirmationByCode(code: string) {
     try {
-      return (
-        await this.connection.query(
-          `DELETE
-        FROM public."emailConfirmation" c
-        WHERE c."id" = $1
-        RETURNING *;`,
-          [code],
-        )
-      )[0][0];
+      const deleteResult = await this.connection
+        .createQueryBuilder()
+        .delete()
+        .from(EmailConfirmation)
+        .where('id = :id', { id: code })
+        .returning('email')
+        .execute();
+      return deleteResult.raw[0].email;
     } catch (err) {
       return null;
     }
   }
 
-  async recreateConfirmationByEmail(confirmation: EmailConfirmation) {
+  async getAndDeleteConfirmationByEmail(email: string) {
     try {
-      const isExist = (
-        await this.connection.query(
-          `DELETE FROM public."emailConfirmation" p WHERE p."email" = $1`,
-          [confirmation.email],
-        )
-      )[1];
-      if (!isExist) return null;
-      await this.createConfirmation(confirmation); //todo to servciice
-      return true;
+      const deleteResult = await this.connection
+        .createQueryBuilder()
+        .delete()
+        .from(EmailConfirmation)
+        .where('email = :email', { email: email })
+        .returning('userId')
+        .execute();
+      console.log(deleteResult);
+      return deleteResult.raw[0].userId;
     } catch (err) {
       return null;
     }

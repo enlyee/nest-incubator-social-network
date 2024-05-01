@@ -20,7 +20,7 @@ export class PostsService {
   async create(postData: PostsInputModel) {
     const blog = await this.blogsQueryRepository.getBlogById(postData.blogId);
     if (!blog) return false;
-    const post = new Post(postData);
+    const post = Post.create(postData);
     const newPost = await this.postsRepository.create(post);
     return newPost;
   }

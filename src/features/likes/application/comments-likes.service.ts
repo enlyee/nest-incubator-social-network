@@ -13,7 +13,7 @@ export class CommentsLikesService {
     userId: string,
     status: 'Like' | 'Dislike' | 'None',
   ) {
-    const comment = await this.commentsQueryRepository.getById(commentId);
+    const comment = await this.commentsQueryRepository.isExists(commentId);
     if (!comment) return false;
     await this.commentsLikesRepository.likeComment(userId, status, commentId);
     return true;

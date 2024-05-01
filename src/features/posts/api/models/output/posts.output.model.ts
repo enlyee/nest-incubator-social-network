@@ -31,7 +31,7 @@ export class PostsOutputModel {
     this.title = post.title;
     this.shortDescription = post.shortDescription;
     this.content = post.content;
-    this.blogId = post.blogId;
+    this.blogId = post.blog.id;
     this.blogName = blogName;
     this.createdAt = post.createdAt.toISOString();
     this.extendedLikesInfo = {

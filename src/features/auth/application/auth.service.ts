@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersRepository } from '../../users/infrastructure/users.repository';
 import { User } from '../../users/domain/users.entity';
-import { jwtConstants } from '../constants';
 import { LoginAuthModel } from '../api/models/input/login.auth.model';
 import { RegistrationAuthModel } from '../api/models/input/registration.auth.model';
 import { UsersService } from '../../users/application/users.service';
@@ -28,8 +27,8 @@ export class AuthService {
 
   //uc
   async register(userData: RegistrationAuthModel) {
-    await this.usersService.createUser(userData);
-    const confirmation = new EmailConfirmation(userData.email);
+    const newUser = await this.usersService.createUser(userData);
+    const confirmation = new EmailConfirmation(newUser.email, newUser.id);
     await this.emailConfirmationRepository.createConfirmation(confirmation);
     await this.mailService.sendUserConfirmation(
       userData.email,
@@ -54,6 +53,11 @@ export class AuthService {
     const date = this._getTokenIssuing(tokens.refreshToken);
     //создание сессии
     await this.sessionService.create(user.id, deviceTitle, date, ip, deviceId);
+    console.log(
+      this.jwtService.decode(
+        `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiaWQiOiIxMDAzMDAiLCJ1c2VyTmFtZSI6InNhbXVyYWkiLCJpYXQiOjE1MTYyMzkwMjJ9.IGr3trEIgc7f1J_VtcQSS83ThsX0Q4IPzVxwxoEGOJc`,
+      ),
+    );
     return tokens;
   }
 
@@ -61,20 +65,25 @@ export class AuthService {
   async logout(user: JwtRefreshOutput) {
     return this.sessionService.deleteById(user.deviceId, user.userId);
   }
+
   async resendEmail(email: string) {
-    const confirmation = new EmailConfirmation(email);
-    const status =
-      await this.emailConfirmationRepository.recreateConfirmationByEmail(
-        confirmation,
+    const userId =
+      await this.emailConfirmationRepository.getAndDeleteConfirmationByEmail(
+        email,
       );
-    if (!status) return null;
+    if (!userId) return null;
+    const confirmation = new EmailConfirmation(email, userId);
+    await this.emailConfirmationRepository.createConfirmation(confirmation);
     await this.mailService.sendUserConfirmation(email, confirmation.id);
   }
+
   async confirmUser(code: string) {
-    const conf: EmailConfirmation | null =
-      await this.emailConfirmationRepository.getAndDeleteConfirmation(code);
-    if (!conf) return null;
-    await this.usersRepository.confirmUser(conf.email);
+    const email: string | null =
+      await this.emailConfirmationRepository.getAndDeleteConfirmationByCode(
+        code,
+      );
+    if (!email) return null;
+    await this.usersRepository.confirmUser(email);
   }
   async updateRefreshToken(user: JwtRefreshOutput) {
     const newTokens = await this._getTokens(user.userId, user.deviceId);
@@ -94,7 +103,7 @@ export class AuthService {
     const accessToken = this.jwtService.sign(
       { userId: userId },
       {
-        secret: jwtConstants.secret,
+        secret: this.configService.get('jwtConfig.secret'),
         expiresIn: `${this.configService.get('jwtTime.access')}s`,
       },
     );
@@ -104,7 +113,7 @@ export class AuthService {
         deviceId: deviceId,
       },
       {
-        secret: jwtConstants.secret,
+        secret: this.configService.get('jwtConfig.secret'),
         expiresIn: `${this.configService.get('jwtTime.refresh')}s`,
       },
     );

@@ -15,7 +15,7 @@ export class BlogsService {
     private readonly postsService: PostsService,
   ) {}
   async create(blogData: BlogsInputModel) {
-    const blog = new Blog(
+    const blog = Blog.create(
       blogData.name,
       blogData.description,
       blogData.websiteUrl,

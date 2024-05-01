@@ -2,28 +2,28 @@ import { BlogsQueryFixedModel } from '../api/models/input/blogs.query.input.mode
 import { Injectable } from '@nestjs/common';
 import { Blog } from '../domain/blogs.entity';
 import { BlogsOutputModelMapper } from '../api/models/output/blogs.output.model';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, ILike, Repository } from 'typeorm';
 
 @Injectable()
 export class BlogsQueryRepository {
-  constructor(@InjectDataSource() private connection: DataSource) {}
+  constructor(@InjectRepository(Blog) private connection: Repository<Blog>) {}
   async getBlogs(query: BlogsQueryFixedModel) {
     try {
-      const collectionSize = (
-        await this.connection.query(
-          `SELECT count(1) FROM public."blogs" b WHERE b."name" ILIKE '%${query.searchNameTerm}%'`, //vlad tut prankanul
-        )
-      )[0].count;
-      const blogs: Blog[] = await this.connection.query(
-        `SELECT * FROM public."blogs" b WHERE b."name" ILIKE '%${query.searchNameTerm}%' ORDER BY b."${query.sortBy}" ${query.sortDirection} LIMIT ${query.pageSize} OFFSET ${(query.pageNumber - 1) * query.pageSize}`,
-      ); //todo PARAMETRIIIIIIIIII
+      const blogsAndSize = await this.connection.findAndCount({
+        where: {
+          name: ILike(`%${query.searchNameTerm}%`),
+        },
+        order: { [query.sortBy]: query.sortDirection },
+        take: query.pageSize,
+        skip: (query.pageNumber - 1) * query.pageSize,
+      });
       return {
-        pagesCount: Math.ceil(collectionSize / query.pageSize),
+        pagesCount: Math.ceil(blogsAndSize[1] / query.pageSize),
         page: +query.pageNumber,
         pageSize: +query.pageSize,
-        totalCount: +collectionSize,
-        items: blogs.map(BlogsOutputModelMapper),
+        totalCount: +blogsAndSize[1],
+        items: blogsAndSize[0].map(BlogsOutputModelMapper),
       };
     } catch (err) {
       return null;
@@ -32,12 +32,9 @@ export class BlogsQueryRepository {
 
   async getBlogById(id: string) {
     try {
-      const blog: Blog[] = await this.connection.query(
-        `SELECT * FROM public."blogs" b WHERE b."id" = $1`,
-        [id],
-      );
-      if (!blog[0]) return false;
-      return BlogsOutputModelMapper(blog[0]);
+      const blog: Blog | null = await this.connection.findOneBy({ id: id });
+      if (!blog) return false;
+      return BlogsOutputModelMapper(blog);
     } catch (err) {
       return false;
     }

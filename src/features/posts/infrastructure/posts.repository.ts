@@ -6,40 +6,27 @@ import {
   PostsInputModelForBlogs,
 } from '../api/models/input/posts.input.model';
 import { PostsQueryRepository } from './posts.query.repository';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 @Injectable()
 export class PostsRepository {
   constructor(
-    @InjectDataSource() private connection: DataSource,
+    @InjectRepository(Post) private connection: Repository<Post>,
     private postsQueryRepository: PostsQueryRepository,
   ) {}
   async create(post: Post) {
     try {
-      const newPost: Post[] = await this.connection.query(
-        `INSERT INTO public.posts(id, title, "shortDescription", content, "blogId", "createdAt") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;`,
-        [
-          post.id,
-          post.title,
-          post.shortDescription,
-          post.content,
-          post.blogId,
-          post.createdAt,
-        ],
-      );
-      return this.postsQueryRepository.getById(newPost[0].id);
+      const newPost = await this.connection.save(post);
+      return this.postsQueryRepository.getById(newPost.id); //todo
     } catch (err) {
       return null;
     }
   }
   async deleteById(id: string): Promise<boolean> {
     try {
-      const postDeleting = await this.connection.query(
-        `DELETE FROM public."posts" p WHERE p."id" = $1`,
-        [id],
-      );
-      return !!postDeleting[1];
+      const deleteStatus = await this.connection.delete({ id: id });
+      return !!deleteStatus.affected;
     } catch (err) {
       return false;
     }
@@ -49,11 +36,15 @@ export class PostsRepository {
     updateData: PostsInputModel | PostsInputModelForBlogs,
   ) {
     try {
-      const updateResult = await this.connection.query(
-        `UPDATE public.posts SET title=$1, "shortDescription"=$2, content=$3 WHERE "id" = $4;`,
-        [updateData.title, updateData.shortDescription, updateData.content, id],
+      const updateResult = await this.connection.update(
+        { id: id },
+        {
+          title: updateData.title,
+          shortDescription: updateData.shortDescription,
+          content: updateData.content,
+        },
       );
-      return !!updateResult[1];
+      return !!updateResult.affected;
     } catch (err) {
       return false;
     }

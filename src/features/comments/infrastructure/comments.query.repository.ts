@@ -5,24 +5,35 @@ import { CommentsQueryFixedModel } from '../api/models/input/comments.query.inpu
 import { CommentsLikesQueryRepository } from '../../likes/infrostructure/comments-likes.query.repository';
 import { UsersQueryRepository } from '../../users/infrastructure/users.query-repository';
 import { LikesInfoModel } from '../../likes/api/models/output/likes.input.model';
-import { DataSource } from 'typeorm';
-import { InjectDataSource } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class CommentsQueryRepository {
   constructor(
-    @InjectDataSource() private connection: DataSource,
+    @InjectRepository(Comment) private connection: Repository<Comment>,
     private readonly commentsLikesQueryRepository: CommentsLikesQueryRepository,
     private readonly usersQueryRepository: UsersQueryRepository,
   ) {}
+  async isExists(id: string) {
+    try {
+      const comment: Comment | null = await this.connection.findOneBy({
+        id: id,
+      });
+      return !!comment;
+    } catch (err) {
+      return false;
+    }
+  }
+
   async getById(id: string, userId: string | undefined = undefined) {
     try {
-      const comment: Comment[] | null = await this.connection.query(
-        `SELECT * FROM public.comments WHERE id=$1`,
-        [id],
-      );
-      if (!comment[0]) return false;
-      const mappedComment = await this.mapToViewModel([comment[0]], userId);
+      const comment: Comment | null = await this.connection.findOneBy({
+        id: id,
+      });
+      console.log(comment);
+      if (!comment) return false;
+      const mappedComment = await this.mapToViewModel([comment], userId);
       return mappedComment[0];
     } catch (err) {
       return false;
@@ -34,39 +45,24 @@ export class CommentsQueryRepository {
     query: CommentsQueryFixedModel,
     userId: string = null,
   ) {
-    const collectionSize = (
-      await this.connection.query(
-        `SELECT count(*) FROM public.comments WHERE "postId"=$1`,
-        [postId],
-      )
-    )[0].count;
+    const commentsAndCount = await this.connection.findAndCount({
+      where: { postId: postId },
+      order: { [query.sortBy]: query.sortDirection },
+      take: query.pageSize,
+      skip: (query.pageNumber - 1) * query.pageSize,
+    });
 
-    const comments: Comment[] = await this.getCommentsDbTypeQuery(
-      query,
-      postId,
-    );
-
-    const items = comments[0]
-      ? await this.mapToViewModel(comments, userId)
+    const items = commentsAndCount[0].length
+      ? await this.mapToViewModel(commentsAndCount[0], userId)
       : [];
 
     return {
-      pagesCount: Math.ceil(collectionSize / query.pageSize),
+      pagesCount: Math.ceil(commentsAndCount[1] / query.pageSize),
       page: +query.pageNumber,
       pageSize: +query.pageSize,
-      totalCount: +collectionSize,
+      totalCount: +commentsAndCount[1],
       items: items,
     };
-  }
-  private async getCommentsDbTypeQuery(
-    query: CommentsQueryFixedModel,
-    postId: string,
-  ) {
-    console.log(query);
-    return this.connection.query(
-      `SELECT * FROM public.comments WHERE "postId"=$1 ORDER BY "${query.sortBy}" ${query.sortDirection} LIMIT $2 OFFSET $3`,
-      [postId, query.pageSize, (query.pageNumber - 1) * query.pageSize],
-    );
   }
   private async mapToViewModel(comments: Comment[], userId: string | null) {
     const commentsId = comments.map((c: Comment) => c.id);

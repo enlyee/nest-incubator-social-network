@@ -10,7 +10,7 @@ export class UsersService {
   constructor(private readonly userRepository: UsersRepository) {}
   async createUser(userData: UserCreateModel) {
     const passwordHash = await this._createHash(userData.password);
-    const user = new User(userData.login, userData.email, passwordHash);
+    const user = User.create(userData.login, userData.email, passwordHash);
     const result: UsersOutputModel = await this.userRepository.createUser(user);
     return result;
   }

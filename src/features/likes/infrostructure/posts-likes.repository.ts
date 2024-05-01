@@ -1,30 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { PostsLike } from '../domain/posts-like.entity';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { PostLike } from '../domain/posts-like.entity';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 @Injectable()
 export class PostsLikesRepository {
-  constructor(@InjectDataSource() private connection: DataSource) {}
+  constructor(
+    @InjectRepository(PostLike) private connection: Repository<PostLike>,
+  ) {}
 
   async like(
     postId: string,
     userId: string,
     status: 'Like' | 'Dislike' | 'None',
   ) {
-    const state = await this.connection.query(
-      `UPDATE public."postsLikes" SET status = $1 WHERE "postId" = $2 AND "userId" = $3`,
-      [status, postId, userId],
+    const state = await this.connection.update(
+      { postId: postId, userId: userId },
+      { status: status },
     );
 
-    console.log(state + 'conslog');
-
-    if (!state[1]) {
-      const like = new PostsLike(userId, postId, status);
-      await this.connection.query(
-        `INSERT INTO public."postsLikes" ("userId", "postId", status, "addedAt") VALUES ($1, $2, $3, $4);`,
-        [like.userId, like.postId, like.status, like.addedAt],
-      );
+    if (!state.affected) {
+      const like = PostLike.create(userId, postId, status);
+      await this.connection.save(like);
       return;
     }
     return;

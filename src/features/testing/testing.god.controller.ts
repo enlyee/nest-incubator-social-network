@@ -11,13 +11,13 @@ export class TestingGodController {
   @HttpCode(204)
   @Delete()
   async dropDB() {
-    await this.connection.query(`DELETE FROM public."emailConfirmation"`);
-    await this.connection.query(`DELETE FROM public."sessions"`);
-    await this.connection.query(`DELETE FROM public."commentsLikes"`);
-    await this.connection.query(`DELETE FROM public."comments"`);
-    await this.connection.query(`DELETE FROM public."postsLikes"`);
-    await this.connection.query(`DELETE FROM public."posts"`);
-    await this.connection.query(`DELETE FROM public."users"`);
-    await this.connection.query(`DELETE FROM public."blogs"`);
+    await this.connection.query(`DELETE FROM public."email_confirmation"`);
+    await this.connection.query(`DELETE FROM public."session"`);
+    await this.connection.query(`DELETE FROM public."comment_like"`);
+    await this.connection.query(`DELETE FROM public."post_like"`);
+    await this.connection.query(`DELETE FROM public."comment"`);
+    await this.connection.query(`DELETE FROM public."post"`);
+    await this.connection.query(`DELETE FROM public."user"`);
+    await this.connection.query(`DELETE FROM public."blog"`);
   }
 }

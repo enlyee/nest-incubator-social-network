@@ -29,9 +29,7 @@ import {
 } from './common/strategies/jwt.strategy';
 import { BasicStrategy } from './common/strategies/basic.strategy';
 import { JwtModule } from '@nestjs/jwt';
-import { jwtConstants } from './features/auth/constants';
-import { MailerModule, MailerOptions } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { MailerModule } from '@nestjs-modules/mailer';
 import { UsersController } from './features/users/api/users.controller';
 import { BlogsController } from './features/blogs/api/blogs.controller';
 import { PostsController } from './features/posts/api/posts.controller';
@@ -54,9 +52,18 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { SessionService } from './features/security/application/session.service';
 import { SessionRepository } from './features/security/infrastructure/session.repository';
 import { SecurityController } from './features/security/api/security.controller';
-import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlogsControllerSa } from './features/blogs/api/blogs.sa.controller';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EntityClassOrSchema } from '@nestjs/typeorm/dist/interfaces/entity-class-or-schema.type';
+import { EmailConfirmation } from './features/auth/domain/email.confirmation.entity';
+import { User } from './features/users/domain/users.entity';
+import { Session } from './features/security/domain/session.entity';
+import { Blog } from './features/blogs/domain/blogs.entity';
+import { Post } from './features/posts/domain/posts.entity';
+import { Comment } from './features/comments/domain/comments.entity';
+import { CommentLike } from './features/likes/domain/comments-like.entity';
+import { PostLike } from './features/likes/domain/posts-like.entity';
 
 const decorators: Provider[] = [BlogIsExistConstraint, IsLikeStatusConstraint];
 
@@ -111,23 +118,35 @@ const strategies: Provider[] = [
   BasicStrategy,
 ];
 
+const entities: EntityClassOrSchema[] = [
+  EmailConfirmation,
+  User,
+  Session,
+  Blog,
+  Post,
+  Comment,
+  CommentLike,
+  PostLike,
+];
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 10000,
-        limit: 500000000, //5
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      useFactory: (configService: ConfigService) => [
+        configService.get('throttlerConfig'),
+      ],
+      inject: [ConfigService],
+    }),
     TypeOrmModule.forRootAsync({
       useFactory: (configService: ConfigService) =>
         configService.get('typeOrmConfig'),
       inject: [ConfigService],
     }),
+    TypeOrmModule.forFeature(entities),
 
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) =>

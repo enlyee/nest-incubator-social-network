@@ -14,7 +14,7 @@ export class SessionService {
     ip: string,
     deviceId: string,
   ) {
-    const session = new Session(userId, deviceTitle, date, ip, deviceId);
+    const session = Session.create(userId, deviceTitle, date, ip, deviceId);
     await this.sessionRepository.create(session);
   }
   async update(sessionId: string, newTokenIssuing: Date) {

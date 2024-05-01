@@ -29,9 +29,9 @@ export class CommentsService {
   }
 
   async create(userId: string, postId: string, content: string) {
-    const post = await this.postsQueryRepository.getById(postId);
+    const post = await this.postsQueryRepository.isExists(postId);
     if (!post) return false;
-    const comment = new Comment(content, userId, postId);
+    const comment = Comment.create(content, userId, postId);
     const newComment: Comment = await this.commentsRepository.create(comment);
     const userInfo = await this.usersQueryRepository.getProfileById(userId);
     return new CommentsOutputModel(newComment, userInfo.login, {

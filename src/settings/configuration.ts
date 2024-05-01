@@ -3,6 +3,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 const envs = [
   'PORT',
   'POSTGRES_URI',
+  'MAILER_HOST',
   'MAILER_LOGIN',
   'MAILER_PASS',
   'JWT_SECRET',
@@ -18,11 +19,16 @@ const getConfig = (environmentVariables: EnvironmentVariable) => {
       PORT: environmentVariables.PORT,
     },
 
+    throttlerConfig: {
+      ttl: 10000,
+      limit: 500000000,
+    },
+
     typeOrmConfig: {
       url: environmentVariables.POSTGRES_URI,
       type: 'postgres',
-      autoLoadEntities: false,
-      synchronize: false,
+      autoLoadEntities: true,
+      synchronize: true,
       logging: true,
     },
 
@@ -55,7 +61,7 @@ const getConfig = (environmentVariables: EnvironmentVariable) => {
 
     jwtTime: {
       refresh: 20,
-      access: 1000000000,
+      access: 10000000000, //default: 10
     },
   };
 };

@@ -1,13 +1,13 @@
 import { InjectModel } from '@nestjs/mongoose';
-import { CommentsLike } from '../domain/comments-like.entity';
+import { CommentLike } from '../domain/comments-like.entity';
 import { Model } from 'mongoose';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { And, DataSource, Repository } from 'typeorm';
 
 export class CommentsLikesRepository {
   constructor(
-    @InjectDataSource()
-    private connection: DataSource,
+    @InjectRepository(CommentLike)
+    private connection: Repository<CommentLike>,
   ) {}
 
   async likeComment(
@@ -15,17 +15,14 @@ export class CommentsLikesRepository {
     status: 'Like' | 'Dislike' | 'None',
     commentId: string,
   ) {
-    const state = await this.connection.query(
-      `UPDATE public."commentsLikes" SET status = $1 WHERE "commentId" = $2 AND "userId" = $3`,
-      [status, commentId, userId],
+    const state = await this.connection.update(
+      { commentId: commentId, userId: userId },
+      { status: status },
     );
 
-    if (!state[1]) {
-      const like = new CommentsLike(userId, commentId, status);
-      await this.connection.query(
-        `INSERT INTO public."commentsLikes" ( "userId", "commentId", status) VALUES ($1, $2, $3);`,
-        [like.userId, like.commentId, like.status],
-      );
+    if (!state.affected) {
+      const like = CommentLike.create(userId, commentId, status);
+      await this.connection.save(like);
       return;
     }
     return;
